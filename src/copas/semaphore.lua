@@ -19,7 +19,7 @@ function semaphore.new(max, start, seconds)
   if timeout < 0 then
     error("expected timeout (2nd argument) to be a number greater than or equal to 0, got: " .. tostring(seconds), 2)
   end
-  if max < 1 then
+  if type(max) ~= "number" or max < 1 then
     error("expected max resources (1st argument) to be a number greater than 0, got: " .. tostring(max), 2)
   end
 
