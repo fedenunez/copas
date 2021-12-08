@@ -344,19 +344,37 @@ end
 -- Return a function which performs the SSL/TLS connection.
 local function tcp(params)
    params = params or {}
+   local rParams = {}
+   -- copy all the keys
+   for k, v in pairs(params) do rParams[k] = v end
+   if (not params.wrap) then
+     -- copy all settings to wrap and remove ssl settings from origin
+     -- this will keep some value duplicated but it will carry any future
+     -- parameters that we don't know now.
+      rParams.wrap = params
+      rParams.protocol = nil
+      rParams.options = nil
+      rParams.verify = nil
+      rParams.mode = nil
+   end
    -- Default settings
-   params.protocol = params.protocol or _M.SSLPROTOCOL
-   params.options = params.options or _M.SSLOPTIONS
-   params.verify = params.verify or _M.SSLVERIFY
-   params.mode = "client"   -- Force client mode
+   rParams.wrap.protocol = rParams.wrap.protocol or _M.SSLPROTOCOL
+   rParams.wrap.options = rParams.wrap.options or _M.SSLOPTIONS
+   rParams.wrap.verify = rParams.wrap.verify or _M.SSLVERIFY
+   rParams.wrap.mode = "client"   -- Force client mode
+
    -- upvalue to track https -> http redirection
    local washttps = false
    -- 'create' function for LuaSocket
    return function (reqt)
       local u = url.parse(reqt.url)
       if (reqt.scheme or u.scheme) == "https" then
+        -- compute sni
+        if not rParams.sni then
+          rParams.sni = { names=u.host, strict=false }
+        end
         -- https, provide an ssl wrapped socket
-        local conn = copas.wrap(socket.tcp(), params)
+        local conn = copas.wrap(socket.tcp(), rParams)
         -- insert https default port, overriding http port inserted by LuaSocket
         if not u.port then
            u.port = _M.SSLPORT
@@ -367,7 +385,7 @@ local function tcp(params)
         return conn
       else
         -- regular http, needs just a socket...
-        if washttps and params.redirect ~= "all" then
+        if washttps and rParams.redirect ~= "all" then
           try(nil, "Unallowed insecure redirect https to http")
         end
         return copas.wrap(socket.tcp())
